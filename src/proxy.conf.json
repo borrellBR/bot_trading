@@ -1,0 +1,10 @@
+{
+  "/kucoin-api": {
+    "target": "https://api.kucoin.com",
+    "secure": true,
+    "changeOrigin": true,
+    "pathRewrite": {
+      "^/kucoin-api": ""
+    }
+  }
+}
