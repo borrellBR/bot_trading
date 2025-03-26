@@ -3,7 +3,6 @@ import { isPlatformBrowser } from '@angular/common';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
-// pako se usa solo si necesitas descomprimir algo; de momento no se está usando.
 import pako from 'pako';
 
 @Injectable({
@@ -20,9 +19,6 @@ export class ExchangeDataService {
     private http: HttpClient
   ) { }
 
-  /**
-   * Inicializa conexiones solo si es navegador y no se ha inicializado ya
-   */
   initialize() {
     if (this.isInitialized) return;
     if (isPlatformBrowser(this.platformId)) {
@@ -31,12 +27,7 @@ export class ExchangeDataService {
     }
   }
 
-  /**
-   * Crea los websockets (Spot/Futuros) para cada exchange
-   */
   private connectToExchanges() {
-    // Aquí defines la info de SPOT y FUTUROS (url, symbol, fecha, etc.)
-    // Ajusta futuresUrl / futuresSymbol según cada exchange.
     const exchanges = [
       {
         name: 'Binance',
@@ -74,18 +65,17 @@ export class ExchangeDataService {
         expirationDate: '2025-06-27'
       },
       {
+        // Ajustamos aquí para KuCoin con el contrato XBTMM25
         name: 'KuCoin',
-        // Mantenemos spotUrl = null para forzar uso de "connectKuCoinSpot()"
         spotUrl: null,
-        // Si quieres Futuros KuCoin, podrías ponerlo aquí:
-        // futuresUrl: 'wss://ws-api-futures.kucoin.com',
-        // futuresSymbol: 'XBTUSDTM_250627',
+        futuresUrl: 'wss://ws-api-futures.kucoin.com',
+        futuresSymbol: 'XBTMM25', // <--- ESTE es el que ves en la URL
         expirationDate: '2025-06-27'
       }
     ];
 
-    // Creamos BehaviorSubjects para SPOT y FUTURES
     exchanges.forEach(exchange => {
+      // BehaviorSubjects iniciales
       this.spotPriceSubjects[exchange.name] = new BehaviorSubject<any>({
         price: 0,
         expirationDate: exchange.expirationDate
@@ -95,31 +85,25 @@ export class ExchangeDataService {
         expirationDate: exchange.expirationDate
       });
 
-      // SPOT normal
+      // SPOT
       if (exchange.spotUrl && exchange.name !== 'KuCoin') {
         this.createSpotWebSocket(exchange.name, exchange.spotUrl);
+      } else if (exchange.name === 'KuCoin') {
+        this.connectKuCoinSpot(); // Spot KuCoin vía bullet
       }
 
-      // FUTURES normal
+      // FUTURES
       if (exchange.futuresUrl && exchange.futuresSymbol && exchange.name !== 'KuCoin') {
         this.createFuturesWebSocket(exchange.name, exchange.futuresUrl, exchange.futuresSymbol);
-      }
-
-      // *** Mantener KuCoin Spot EXACTO como tu snippet original (para no romperlo) ***
-      if (exchange.name === 'KuCoin') {
-        this.connectKuCoinSpot(); // Sin tocar
-
-        // Si quisieras Futuros KuCoin, descomenta y define futuresUrl + futuresSymbol arriba.
-        // if (exchange.futuresUrl && exchange.futuresSymbol) {
-        //   this.connectKuCoinFutures(exchange.futuresUrl, exchange.futuresSymbol);
-        // }
+      } else if (exchange.name === 'KuCoin' && exchange.futuresUrl && exchange.futuresSymbol) {
+        this.connectKuCoinFutures(exchange.futuresUrl, exchange.futuresSymbol);
       }
     });
   }
 
-  // -----------------------------------------------------------------------
+  // ----------------------------------------------------------------
   // SPOT normal
-  // -----------------------------------------------------------------------
+  // ----------------------------------------------------------------
   private createSpotWebSocket(exchangeName: string, url: string) {
     this.sockets[`${exchangeName}_spot`] = webSocket({
       url,
@@ -128,7 +112,7 @@ export class ExchangeDataService {
           console.log(`${exchangeName} spot WebSocket conectado`);
           const subMsg = this.getSpotSubscriptionMessage(exchangeName);
           if (subMsg) {
-            console.log(`[${exchangeName} SPOT] -> Enviando subscripción`, subMsg);
+            console.log(`[${exchangeName} SPOT] -> Enviando suscripción`, subMsg);
             this.sockets[`${exchangeName}_spot`].next(subMsg);
           }
         }
@@ -146,16 +130,15 @@ export class ExchangeDataService {
     });
   }
 
-  // -----------------------------------------------------------------------
+  // ----------------------------------------------------------------
   // FUTURES normal
-  // -----------------------------------------------------------------------
+  // ----------------------------------------------------------------
   private createFuturesWebSocket(exchangeName: string, url: string, futuresSymbol: string) {
     this.sockets[`${exchangeName}_futures`] = webSocket({
       url,
       openObserver: {
         next: () => {
           console.log(`${exchangeName} futures WebSocket conectado`);
-          // Aquí mandas el mensaje de suscripción, si es necesario
           const subMsg = this.getFuturesSubscriptionMessage(exchangeName, futuresSymbol);
           if (subMsg) {
             console.log(`[${exchangeName} FUTURES] -> Enviando subscripción`, subMsg);
@@ -176,15 +159,15 @@ export class ExchangeDataService {
     });
   }
 
-  // -----------------------------------------------------------------------
-  // *** KuCoin Spot EXACTO del snippet original (no se toca) ***
-  // -----------------------------------------------------------------------
+  // ----------------------------------------------------------------
+  // KuCoin SPOT (NO TOCAR)
+  // ----------------------------------------------------------------
   private connectKuCoinSpot() {
-    // Llamada HTTP a tu endpoint "bullet-public"
-    this.http.post('/kucoin-api/api/v1/bullet-public', {})
-      .subscribe((res: any) => {
+    // Ajusta tu endpoint / proxy si corresponde
+    this.http.post('/kucoin-api/api/v1/bullet-public', {}).subscribe({
+      next: (res: any) => {
         if (!res?.data?.instanceServers?.length) {
-          console.error('No se obtuvieron instanceServers de KuCoin', res);
+          console.error('[KuCoin Spot] No se obtuvieron instanceServers:', res);
           return;
         }
         const { token, instanceServers } = res.data;
@@ -195,7 +178,7 @@ export class ExchangeDataService {
           url: wsUrl,
           openObserver: {
             next: () => {
-              console.log('KuCoin spot WebSocket conectado');
+              console.log('[KuCoin Spot] Conectado');
               const subMsg = {
                 id: Date.now(),
                 type: 'subscribe',
@@ -205,7 +188,6 @@ export class ExchangeDataService {
               };
               this.sockets['KuCoin_spot'].next(subMsg);
 
-              // Ping cada 25s
               setInterval(() => {
                 this.sockets['KuCoin_spot'].next({
                   id: Date.now(),
@@ -215,37 +197,61 @@ export class ExchangeDataService {
             }
           },
           closeObserver: {
-            next: () => console.warn('KuCoin_spot websocket cerrado')
+            next: () => {
+              console.warn('[KuCoin Spot] websocket cerrado');
+            }
           }
         });
 
         this.sockets['KuCoin_spot'].subscribe({
           next: msg => this.handleSpotPrice('KuCoin', msg),
-          error: err => console.error('KuCoin_spot error:', err)
+          error: err => console.error('[KuCoin Spot] Error:', err)
         });
-      }, err => console.error('Error al obtener bullet-public de KuCoin:', err));
+      },
+      error: err => console.error('[KuCoin Spot] bullet-public error:', err)
+    });
   }
 
-  /**
-   * (Opcional) Si quisieras KuCoin Futuros, análogamente:
-   */
-  /*
+  // ----------------------------------------------------------------
+  // KuCoin FUTURES
+  // ----------------------------------------------------------------
   private connectKuCoinFutures(url: string, futuresSymbol: string) {
-    this.http.post('https://api-futures.kucoin.com/api/v1/bullet-public', {})
-      .subscribe((res: any) => {
+    console.log('[KuCoin Futures] Iniciando bullet-public...');
+    this.http.post('https://api-futures.kucoin.com/api/v1/bullet-public', {}).subscribe({
+      next: (res: any) => {
         if (!res?.data?.instanceServers?.length) {
-          console.error('No se obtuvieron instanceServers de KuCoin Futures', res);
+          console.error('[KuCoin Futures] No se obtuvieron instanceServers:', res);
           return;
         }
+
         const { token, instanceServers } = res.data;
         const endpoint = instanceServers[0].endpoint;
         const wsUrl = `${endpoint}?token=${token}&connectId=${Date.now()}`;
 
+        console.log('[KuCoin Futures] Conectando WS ->', wsUrl);
+
         this.sockets['KuCoin_futures'] = webSocket({
           url: wsUrl,
+          binaryType: 'arraybuffer', // Manejo binario
+          deserializer: ({ data }) => {
+            // Si llega como string, parsea normal
+            if (typeof data === 'string') {
+              return JSON.parse(data);
+            } else {
+              // Si llega comprimido (ArrayBuffer), descomprime con pako
+              try {
+                const text = pako.inflate(new Uint8Array(data), { to: 'string' });
+                return JSON.parse(text);
+              } catch (err) {
+                console.error('[KuCoin Futures] Error descomprimiendo:', err);
+                return {};
+              }
+            }
+          },
           openObserver: {
             next: () => {
-              console.log('KuCoin futures WebSocket conectado');
+              console.log('[KuCoin Futures] WS conectado');
+              // Importante: usar EXACTAMENTE "/contractMarket/ticker:XBTMM25"
               const subMsg = {
                 id: Date.now(),
                 type: 'subscribe',
@@ -253,32 +259,38 @@ export class ExchangeDataService {
                 privateChannel: false,
                 response: true
               };
+              console.log('[KuCoin Futures] -> Enviando suscripción:', subMsg);
               this.sockets['KuCoin_futures'].next(subMsg);
 
+              // Ping periódico
               setInterval(() => {
-                this.sockets['KuCoin_futures'].next({
+                const ping = {
                   id: Date.now(),
                   type: 'ping'
-                });
+                };
+                this.sockets['KuCoin_futures'].next(ping);
               }, 25000);
             }
           },
           closeObserver: {
-            next: () => console.warn('KuCoin_futures websocket cerrado')
+            next: () => {
+              console.warn('[KuCoin Futures] websocket cerrado');
+            }
           }
         });
 
         this.sockets['KuCoin_futures'].subscribe({
           next: msg => this.handleFuturesPrice('KuCoin', msg),
-          error: err => console.error('KuCoin_futures error:', err)
+          error: err => console.error('[KuCoin_futures error]:', err)
         });
-      }, err => console.error('Error al obtener bullet-public de KuCoin Futures:', err));
+      },
+      error: err => console.error('[KuCoin Futures] bullet-public error:', err)
+    });
   }
-  */
 
-  // --------------------------------------------------
-  // Observables para que el componente se suscriba
-  // --------------------------------------------------
+  // ----------------------------------------------------------------
+  // GETTERS
+  // ----------------------------------------------------------------
   getSpotPrice(exchange: string): Observable<any> {
     return this.spotPriceSubjects[exchange]?.asObservable() || new Observable();
   }
@@ -287,13 +299,13 @@ export class ExchangeDataService {
     return this.futuresPriceSubjects[exchange]?.asObservable() || new Observable();
   }
 
-  // --------------------------------------------------
-  // Mensajes de suscripción SPOT
-  // --------------------------------------------------
+  // ----------------------------------------------------------------
+  // Subscripción SPOT
+  // ----------------------------------------------------------------
   private getSpotSubscriptionMessage(exchange: string): any {
     switch (exchange) {
       case 'Binance':
-        // No se envía nada, ya suscrito con "btcusdt@trade"
+        // Nada, Binance ya suscrito en la URL
         return null;
       case 'Kraken':
         return {
@@ -323,20 +335,17 @@ export class ExchangeDataService {
             }
           ]
         };
-      // KuCoin => se gestiona con connectKuCoinSpot() sin tocar nada
       default:
         return null;
     }
   }
 
-  // --------------------------------------------------
-  // Mensajes de suscripción FUTURES
-  // --------------------------------------------------
+  // ----------------------------------------------------------------
+  // Subscripción FUTURES
+  // ----------------------------------------------------------------
   private getFuturesSubscriptionMessage(exchange: string, futuresSymbol: string): any {
-    // Ajusta según la API de cada exchange
     switch (exchange) {
       case 'Binance':
-        // Si quieres mandar un SUBSCRIBE extra, hazlo. Normalmente con @markPrice en la URL ya funciona.
         return {
           method: 'SUBSCRIBE',
           params: [`${futuresSymbol.toLowerCase()}@markPrice`],
@@ -369,9 +378,9 @@ export class ExchangeDataService {
     }
   }
 
-  // --------------------------------------------------
-  // Procesar precio de SPOT
-  // --------------------------------------------------
+  // ----------------------------------------------------------------
+  // handleSpotPrice
+  // ----------------------------------------------------------------
   private handleSpotPrice(exchange: string, msg: any) {
     const oldPrice = this.spotPriceSubjects[exchange].value.price;
     let price = oldPrice;
@@ -393,7 +402,6 @@ export class ExchangeDataService {
         }
         break;
       case 'Bitfinex':
-        // [chanId, [ ..., LAST_PRICE, ... ]]
         if (Array.isArray(msg) && Array.isArray(msg[1])) {
           const lastPrice = msg[1][6];
           if (lastPrice) {
@@ -407,8 +415,8 @@ export class ExchangeDataService {
         }
         break;
       case 'KuCoin':
-        // Manteniendo exactamente tu lógica original
-        if (msg?.topic?.includes('ticker:BTC-USDT') && msg?.data?.price) {
+        // /market/ticker:BTC-USDT
+        if (msg?.topic?.includes('BTC-USDT') && msg?.data?.price) {
           price = parseFloat(msg.data.price);
         }
         break;
@@ -417,9 +425,9 @@ export class ExchangeDataService {
     this.spotPriceSubjects[exchange].next({ price });
   }
 
-  // --------------------------------------------------
-  // Procesar precio de FUTURES
-  // --------------------------------------------------
+  // ----------------------------------------------------------------
+  // handleFuturesPrice
+  // ----------------------------------------------------------------
   private handleFuturesPrice(exchange: string, msg: any) {
     console.log(`[Futures ${exchange}]`, msg);
 
@@ -433,13 +441,11 @@ export class ExchangeDataService {
         }
         break;
       case 'Kraken':
-        // [channelId, { c:["12345.6","1","1.000"] }, "ticker", "PI_XBTUSD_250627"]
         if (Array.isArray(msg) && msg[1]?.c) {
           price = parseFloat(msg[1].c[0]);
         }
         break;
       case 'Bitfinex':
-        // [chanId, [ ..., LAST_PRICE, ... ]]
         if (Array.isArray(msg) && Array.isArray(msg[1])) {
           const lastPrice = msg[1][6];
           if (lastPrice) {
@@ -448,14 +454,15 @@ export class ExchangeDataService {
         }
         break;
       case 'OKX':
-        // { arg:{ channel:'mark-price', instId:'BTC-USDT-250627'}, data:[{ markPx:'12345.67' }] }
         if (msg?.arg?.channel === 'mark-price' && msg?.data?.[0]?.markPx) {
           price = parseFloat(msg.data[0].markPx);
         }
         break;
       case 'KuCoin':
-        // Si en algún momento activas Futuros KuCoin, parsea aquí:
-        // if (msg?.topic?.includes(`ticker:XBTUSDTM_250627`) && msg?.data?.price) {...}
+        // Revisa el topic con "ticker:XBTMM25"
+        if (msg?.topic?.includes('ticker:XBTMM25') && msg?.data?.price) {
+          price = parseFloat(msg.data.price);
+        }
         break;
     }
 
