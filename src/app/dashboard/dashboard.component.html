@@ -22,12 +22,20 @@
         <td>{{ data.futuresBtcUsdt | number:'1.2-2' }}</td>
         <td>{{ data.futuresBtcUsdc | number:'1.2-2' }}</td>
         <td>{{ data.expirationDateBtcUsdt }}</td>
-        <td>{{ calculateProfitability(data.spotBtcUsdt, data.futuresBtcUsdt, 100, data.expirationDateBtcUsdt) |
-          number:'1.2-2' }}%</td>
-        <td>{{ calculateProfitability(data.spotBtcUsdt, data.futuresBtcUsdt, 50, data.expirationDateBtcUsdt) |
-          number:'1.2-2' }}%</td>
-        <td>{{ calculateProfitability(data.spotBtcUsdt, data.futuresBtcUsdt, 30, data.expirationDateBtcUsdt) |
-          number:'1.2-2' }}%</td>
+
+        <!-- Rentabilidades -->
+        <td>
+          {{ calculateProfitability(data.spotBtcUsdt, data.futuresBtcUsdt, 100, data.expirationDateBtcUsdt)
+          | number:'1.2-2' }}%
+        </td>
+        <td>
+          {{ calculateProfitability(data.spotBtcUsdt, data.futuresBtcUsdt, 50, data.expirationDateBtcUsdt)
+          | number:'1.2-2' }}%
+        </td>
+        <td>
+          {{ calculateProfitability(data.spotBtcUsdt, data.futuresBtcUsdt, 30, data.expirationDateBtcUsdt)
+          | number:'1.2-2' }}%
+        </td>
       </tr>
     </tbody>
   </table>
