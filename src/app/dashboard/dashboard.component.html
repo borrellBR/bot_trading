@@ -1,0 +1,34 @@
+<div class="container mt-4">
+  <h1>Bitcoin Cash and Carry Tracker</h1>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Exchange</th>
+        <th>Spot BTC/USDT</th>
+        <th>Spot BTC/USDC</th>
+        <th>Futures BTC/USDT</th>
+        <th>Futures BTC/USDC</th>
+        <th>Expiration Date</th>
+        <th>Rentabilidad (100%)</th>
+        <th>Rentabilidad (50%)</th>
+        <th>Rentabilidad (30%)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let data of exchangeData">
+        <td>{{ data.name }}</td>
+        <td>{{ data.spotBtcUsdt | number:'1.2-2' }}</td>
+        <td>{{ data.spotBtcUsdc | number:'1.2-2' }}</td>
+        <td>{{ data.futuresBtcUsdt | number:'1.2-2' }}</td>
+        <td>{{ data.futuresBtcUsdc | number:'1.2-2' }}</td>
+        <td>{{ data.expirationDateBtcUsdt }}</td>
+        <td>{{ calculateProfitability(data.spotBtcUsdt, data.futuresBtcUsdt, 100, data.expirationDateBtcUsdt) |
+          number:'1.2-2' }}%</td>
+        <td>{{ calculateProfitability(data.spotBtcUsdt, data.futuresBtcUsdt, 50, data.expirationDateBtcUsdt) |
+          number:'1.2-2' }}%</td>
+        <td>{{ calculateProfitability(data.spotBtcUsdt, data.futuresBtcUsdt, 30, data.expirationDateBtcUsdt) |
+          number:'1.2-2' }}%</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

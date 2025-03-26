@@ -1,0 +1,10 @@
+/* Estilos básicos */
+.table {
+  font-size: 14px;
+}
+
+th,
+td {
+  text-align: center;
+  vertical-align: middle;
+}
