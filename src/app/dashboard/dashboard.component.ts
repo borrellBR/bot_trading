@@ -19,7 +19,7 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit() {
     this.exchangeDataService.initialize();
-    const exchanges = ['Binance', 'Bybit', 'Kraken', 'Coinbase', 'Bitfinex', 'OKX', 'Huobi', 'KuCoin', 'Gate.io', 'Deribit'];
+    const exchanges = ['Binance', 'Kraken', 'Coinbase', 'Bitfinex', 'OKX', 'KuCoin'];
     exchanges.forEach(exchange => {
       this.exchangeData.push({
         name: exchange,
